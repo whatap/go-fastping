@@ -498,6 +498,9 @@ func (p *Pinger) sendICMPAsync(conn, conn6 *icmp.PacketConn) {
 
 	for {
 		addr := <-p.addrsAsync
+		p.mu.Lock()
+		p.addrs[addr.String()] = addr
+		p.mu.Unlock()
 		var typ icmp.Type
 		var cn *icmp.PacketConn
 		if isIPv4(addr.IP) {
@@ -845,11 +848,16 @@ func (p *Pinger) procRecvAsync(recv *packet) {
 	default:
 		return
 	}
-
-	p.mu.Lock()
 	handler := p.OnRecv
+
+	var ok bool
+	p.mu.Lock()
+	_, ok = p.addrs[ipaddr.String()]
+	if ok {
+		delete(p.addrs, ipaddr.String())
+	}
 	p.mu.Unlock()
-	if handler != nil {
+	if ok && handler != nil {
 		handler(ipaddr, rtt)
 	}
 }
